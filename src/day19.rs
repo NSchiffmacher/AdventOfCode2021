@@ -29,14 +29,6 @@ impl Solution {
 
         // Solve
         println!("{:?}", scanners[1].compute_position_rotation(&scanners[0]));
-
-        // for i in 0..scanners.len() {
-        //     for j in i+1..scanners.len() {
-        //         if let Some(()) = scanners[i].compute_position_rotation(&scanners[j]) {
-        //             // println!("{} and {} match", i, j);
-        //         }
-        //     }
-        // }
     }
 
     fn part2(&mut self) {}
@@ -95,7 +87,10 @@ impl Scanner {
         for i in 0..scans.len() {
             for j in i + 1..scans.len() {
                 let dist = (&scans[i] - &scans[j]).norm();
-                self_distances.insert((dist * 1_000_000_000.) as u128, (i, j));
+                let res = self_distances.insert((dist * 1_000_000_000.) as u128, (i, j));
+                if res.is_some() {
+                    panic!("Duplicate distance");
+                }
             }
         }
 
@@ -107,41 +102,42 @@ impl Scanner {
         }
     }
 
-    pub fn compute_position_rotation(&self, _other: &Scanner) -> Option<()> {
-        // // find matching distances
-        // let mut matching_distances = Vec::new();
-        // for (dist, (i, j)) in &self.self_distances {
-        //     if let Some((k, l)) = other.self_distances.get(dist) {
-        //         matching_distances.push(((*i, *j), (*k, *l)));
-        //     }
-        // }
+    pub fn compute_position_rotation(&self, other: &Scanner) -> Option<()> {
+        // find matching distances
+        let mut matching_distances = Vec::new();
+        for (dist, (i, j)) in &self.self_distances {
+            if let Some((k, l)) = other.self_distances.get(dist) {
+                matching_distances.push(((*i, *j), (*k, *l)));
+            }
+        }
 
-        // if matching_distances.len() != 66 {
-        //     return None;
-        // }
+        if matching_distances.len() != 66 {
+            println!("Not the correct number of matching distances: {:?}", matching_distances.len());
+            return None;
+        }
 
-        // let mut matching_indices = HashMap::new();
-        // matching_indices.insert(matching_distances[0].0.0, matching_distances[0].1.0);
-        // matching_indices.insert(matching_distances[0].0.1, matching_distances[0].1.1);
-        // for _ in 0..10 {
-        //     for ((i, j), (k, l)) in &matching_distances[1..] {
-        //         if matching_indices.contains_key(i) && matching_indices.get(i) == Some(k) {
-        //             matching_indices.insert(*j, *l);
-        //         } else if matching_indices.contains_key(i) && matching_indices.get(i) == Some(l) {
-        //             matching_indices.insert(*j, *k);
-        //         } else if matching_indices.contains_key(j) && matching_indices.get(j) == Some(l) {
-        //             matching_indices.insert(*i, *k);
-        //         } else if matching_indices.contains_key(j) && matching_indices.get(j) == Some(k) {
-        //             matching_indices.insert(*i, *l);
-        //         }
-        //     }
-        // }
+        let mut matching_indices = HashMap::new();
+        matching_indices.insert(matching_distances[0].0.0, matching_distances[0].1.0);
+        matching_indices.insert(matching_distances[0].0.1, matching_distances[0].1.1);
+        for _ in 0..10 {
+            for ((i, j), (k, l)) in &matching_distances[1..] {
+                if matching_indices.contains_key(i) && matching_indices.get(i) == Some(k) {
+                    matching_indices.insert(*j, *l);
+                } else if matching_indices.contains_key(i) && matching_indices.get(i) == Some(l) {
+                    matching_indices.insert(*j, *k);
+                } else if matching_indices.contains_key(j) && matching_indices.get(j) == Some(l) {
+                    matching_indices.insert(*i, *k);
+                } else if matching_indices.contains_key(j) && matching_indices.get(j) == Some(k) {
+                    matching_indices.insert(*i, *l);
+                }
+            }
+        }
 
-        // println!("{:?}", matching_indices);
-        // println!("{:?}", matching_indices.len());
+        println!("{:?}", matching_indices);
+        println!("{:?}", matching_indices.len());
 
-        // // let mat1 = Array2::from_shape_vec((3, 3), self.scans.iter().map(|v| v.to_vec()).flatten().collect_vec()).unwrap();
-        // // println!("{:?}", mat1);
+        let mat1 = Array2::from_shape_vec((3, 3), self.scans.iter().map(|v| v.to_vec()).flatten().collect_vec()).unwrap();
+        println!("{:?}", mat1);
 
         Some(())
     }
