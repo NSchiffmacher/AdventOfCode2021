@@ -18,42 +18,50 @@ impl Solution {
         Self { lines }
     }
 
-    fn part1(&mut self) {
-        // Parse
-        let rectangles = self
+    fn part1(&mut self) -> T{
+        let cuboids = self
             .lines
             .iter()
-            .map(|line| Rectangle::from_line(line))
+            .map(|line| Cuboid::from_line(line))
+            .filter(|cuboid| cuboid.valid_for_part_1())
             .collect_vec();
+        let mut cores: Vec<Cuboid> = vec![];
 
-        // Solve
-        // let mut world = vec![Rectangle::new(Interval::new(0, 0), Interval::new(0, 0), Interval::new(0, 0), false)];
-        // for rectangle in rectangles {
-        //     let mut new_world = Vec::new();
-        //     for world_rectangle in world {
-        //         // new_world.append(&mut world_rectangle.update(&rectangle));
-        //     }
-        //     world = new_world;
-        // }
-
-        let aabb1 = Rectangle::from_min_max([0, 0, 0], [5, 5, 5], false);
-
-        let aabb2 = Rectangle::from_min_max([3, 3, 3], [8, 8, 8], false);
-
-        if let Some(overlap) = Rectangle::calculate_overlap(&aabb1, &aabb2) {
-            println!("Overlap AABB: {:?}", overlap);
-
-            let external = Rectangle::generate_external_aabbs(&aabb1, &aabb2, &overlap);
-            println!("External AABBs:");
-            for e in external {
-                println!("{:?}", e);
+        for cuboid in cuboids {
+            let mut to_add = if cuboid.added { vec![cuboid.clone()] } else { vec![] };
+            for core_cuboid in &cores {
+                let intersection = cuboid.intersection(core_cuboid);
+                if let Some(intersection) = intersection {
+                    to_add.push(intersection);
+                }
             }
-        } else {
-            println!("No overlap between the AABBs.");
+            cores.extend(to_add);
         }
+
+        cores.iter().fold(0, |acc, cuboid| acc + cuboid.signed_volume())
     }
 
-    fn part2(&mut self) {}
+    fn part2(&mut self) -> T {
+        let cuboids = self
+            .lines
+            .iter()
+            .map(|line| Cuboid::from_line(line))
+            .collect_vec();
+        let mut cores: Vec<Cuboid> = vec![];
+
+        for cuboid in cuboids {
+            let mut to_add = if cuboid.added { vec![cuboid.clone()] } else { vec![] };
+            for core_cuboid in &cores {
+                let intersection = cuboid.intersection(core_cuboid);
+                if let Some(intersection) = intersection {
+                    to_add.push(intersection);
+                }
+            }
+            cores.extend(to_add);
+        }
+
+        cores.iter().fold(0, |acc, cuboid| acc + cuboid.signed_volume())
+    }
 
     pub fn solve(&mut self) {
         println!("========= DAY 22 ========");
@@ -75,201 +83,95 @@ impl Solution {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Interval {
-    pub min: isize,
-    pub max: isize,
-}
-
-impl Interval {
-    pub fn new(min: isize, max: isize) -> Self {
-        Self { min, max }
-    }
-
-    pub fn from_str(s: &str) -> Self {
-        let (_, s) = s.split_once("=").unwrap();
-        let (min, max) = s.split_once("..").unwrap();
-        Self {
-            min: min.parse().unwrap(),
-            max: max.parse().unwrap(),
-        }
-    }
-}
+type T = i64;
 
 #[derive(Debug, Clone)]
-pub struct Rectangle {
-    pub x: Interval,
-    pub y: Interval,
-    pub z: Interval,
-
-    pub state: bool,
+struct Cuboid {
+    added: bool,
+    min_x: T,
+    max_x: T,
+    min_y: T,
+    max_y: T,
+    min_z: T,
+    max_z: T,
 }
 
-impl Rectangle {
-    pub fn new(x: Interval, y: Interval, z: Interval, state: bool) -> Self {
-        Self { x, y, z, state }
-    }
-
-    pub fn from_line(line: &str) -> Self {
-        let (state, coordinates) = line.split(" ").collect_tuple().unwrap();
-        let (x, y, z) = coordinates.split(",").collect_tuple().unwrap();
-
+impl Cuboid {
+    pub fn new(min_x: T, max_x: T, min_y: T, max_y: T, min_z: T, max_z: T, added: bool) -> Self {
         Self {
-            x: Interval::from_str(x),
-            y: Interval::from_str(y),
-            z: Interval::from_str(z),
-            state: if state == "on" { true } else { false },
+            added,
+            min_x,
+            max_x,
+            min_y,
+            max_y,
+            min_z,
+            max_z,
         }
     }
 
-    fn calculate_overlap(aabb1: &Rectangle, aabb2: &Rectangle) -> Option<Rectangle> {
-        let overlap_min: [isize; 3] = [
-            aabb1.x.min.max(aabb2.x.min),
-            aabb1.y.min.max(aabb2.y.min),
-            aabb1.z.min.max(aabb2.z.min),
-        ];
+    pub fn intersection(&self, other: &Self) -> Option<Self> {
+        let min_x = self.min_x.max(other.min_x);
+        let max_x = self.max_x.min(other.max_x);
+        let min_y = self.min_y.max(other.min_y);
+        let max_y = self.max_y.min(other.max_y);
+        let min_z = self.min_z.max(other.min_z);
+        let max_z = self.max_z.min(other.max_z);
 
-        let overlap_max: [isize; 3] = [
-            aabb1.x.max.min(aabb2.x.max),
-            aabb1.y.max.min(aabb2.y.max),
-            aabb1.z.max.min(aabb2.z.max),
-        ];
-
-        if overlap_min[0] < overlap_max[0]
-            && overlap_min[1] < overlap_max[1]
-            && overlap_min[2] < overlap_max[2]
-        {
-            Some(Rectangle {
-                x: Interval::new(overlap_min[0], overlap_max[0]),
-                y: Interval::new(overlap_min[1], overlap_max[1]),
-                z: Interval::new(overlap_min[2], overlap_max[2]),
-                state: false,
-            })
+        if min_x <= max_x && min_y <= max_y && min_z <= max_z { // TODO: Check if need equality ?
+            Some(Self::new(min_x, max_x, min_y, max_y, min_z, max_z, !other.added))
         } else {
             None
         }
     }
 
-    fn from_min_max(min_point: [isize; 3], max_point: [isize; 3], state: bool) -> Self {
-        Self {
-            x: Interval::new(min_point[0], max_point[0]),
-            y: Interval::new(min_point[1], max_point[1]),
-            z: Interval::new(min_point[2], max_point[2]),
-            state,
-        }
+    pub fn valid_for_part_1(&self) -> bool {
+        self.min_x >= -50 && self.max_x <= 50 && self.min_y >= -50 && self.max_y <= 50 && self.min_z >= -50 && self.max_z <= 50
     }
 
-    fn generate_external_aabbs(
-        aabb1: &Rectangle,
-        aabb2: &Rectangle,
-        overlap_aabb: &Rectangle,
-    ) -> Vec<Rectangle> {
-        let mut external_aabbs = Vec::new();
+    pub fn from_line(line: &str) -> Self {
+        let (state_str, remainder) = line.split_once(" ").unwrap();
+        let added = match state_str {
+            "on" => true,
+            "off" => false,
+            _ => panic!("Invalid state"),
+        };
 
-        // Add AABBs covering regions to the left of the overlap
-        if aabb1.x.min < overlap_aabb.x.min {
-            external_aabbs.push(Rectangle::from_min_max(
-                [aabb1.x.min, aabb1.y.min, aabb1.z.min],
-                [overlap_aabb.x.min, aabb1.y.max, aabb1.z.max],
-                false,
-            ));
+        let mut values = Vec::new();
+        for part in remainder.split(",") {
+            let (_axis, range) = part.split_once("=").unwrap();
+            let (min, max) = range.split_once("..").unwrap();
+            values.push(min.parse().unwrap());
+            values.push(max.parse().unwrap());
         }
 
-        if aabb2.x.min < overlap_aabb.x.min {
-            external_aabbs.push(Rectangle::from_min_max(
-                [aabb2.x.min, aabb2.y.min, aabb2.z.min],
-                [overlap_aabb.x.min, aabb2.y.max, aabb2.z.max],
-                false,
-            ));
-        }
+        let (min_x, max_x, min_y, max_y, min_z, max_z) = values.into_iter().collect_tuple().unwrap();
+        Self::new(min_x, max_x, min_y, max_y, min_z, max_z, added)
+    }
 
-        // Add AABBs covering regions to the right of the overlap
-        if aabb1.x.max > overlap_aabb.x.max {
-            external_aabbs.push(Rectangle::from_min_max(
-                [overlap_aabb.x.max, aabb1.y.max, aabb1.y.min],
-                [aabb1.x.max, aabb1.y.max, aabb1.z.max],
-                false,
-            ));
-        }
+    pub fn signed_volume(&self) -> T {
+        let sign = if self.added {
+            1
+        } else {
+            -1
+        };
+        (self.max_x - self.min_x + 1) * (self.max_y - self.min_y + 1) * (self.max_z - self.min_z + 1) * sign
+    }
+}
 
-        if aabb2.x.max > overlap_aabb.x.max {
-            external_aabbs.push(Rectangle::from_min_max(
-                [overlap_aabb.x.max, aabb2.y.max, aabb2.y.min],
-                [aabb2.x.max, aabb2.y.max, aabb2.z.max],
-                false,
-            ));
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        /////////////////////////////////////////////////
-        // Add AABBs covering regions to the left of the overlap
-        if aabb1.y.min < overlap_aabb.y.min {
-            external_aabbs.push(Rectangle::from_min_max(
-                [aabb1.x.min, aabb1.y.min, aabb1.z.min],
-                [aabb1.x.min, overlap_aabb.y.max, aabb1.z.max],
-                false,
-            ));
-        }
-
-        if aabb2.y.min < overlap_aabb.y.min {
-            external_aabbs.push(Rectangle::from_min_max(
-                [aabb2.x.min, aabb2.y.min, aabb2.z.min],
-                [aabb2.x.min, overlap_aabb.y.max, aabb2.z.max],
-                false,
-            ));
-        }
-
-        // Add AABBs covering regions to the right of the overlap
-        if aabb1.y.max > overlap_aabb.y.max {
-            external_aabbs.push(Rectangle::from_min_max(
-                [aabb1.x.max, overlap_aabb.y.max, aabb1.y.min],
-                [aabb1.x.max, aabb1.y.max, aabb1.z.max],
-                false,
-            ));
-        }
-
-        if aabb2.y.max > overlap_aabb.y.max {
-            external_aabbs.push(Rectangle::from_min_max(
-                [aabb2.x.max, overlap_aabb.y.max, aabb2.y.min],
-                [aabb2.x.max, aabb2.y.max, aabb2.z.max],
-                false,
-            ));
-        }
-
-        /////////////////////////////////////////////////
-        // Add AABBs covering regions to the left of the overlap
-        if aabb1.z.min < overlap_aabb.z.min {
-            external_aabbs.push(Rectangle::from_min_max(
-                [aabb1.x.min, aabb1.y.min, aabb1.z.min],
-                [aabb1.x.min, aabb1.y.max, overlap_aabb.z.max],
-                false,
-            ));
-        }
-
-        if aabb2.z.min < overlap_aabb.z.min {
-            external_aabbs.push(Rectangle::from_min_max(
-                [aabb2.x.min, aabb2.y.min, aabb2.z.min],
-                [aabb2.x.min, aabb2.y.max, overlap_aabb.z.max],
-                false,
-            ));
-        }
-
-        // Add AABBs covering regions to the right of the overlap
-        if aabb1.z.max > overlap_aabb.z.max {
-            external_aabbs.push(Rectangle::from_min_max(
-                [aabb1.x.max, aabb1.y.max, overlap_aabb.y.min],
-                [aabb1.x.max, aabb1.y.max, aabb1.z.max],
-                false,
-            ));
-        }
-
-        if aabb2.y.max > overlap_aabb.y.max {
-            external_aabbs.push(Rectangle::from_min_max(
-                [aabb2.x.max, overlap_aabb.y.max, aabb2.y.min],
-                [aabb2.x.max, aabb2.y.max, aabb2.z.max],
-                false,
-            ));
-        }
-
-        external_aabbs
+    #[test]
+    fn test_parse() {
+        let line = "on x=-7..46,y=-33..20,z=-18..35";
+        let cuboid = Cuboid::from_line(line);
+        assert_eq!(cuboid.min_x, -7);
+        assert_eq!(cuboid.max_x, 46);
+        assert_eq!(cuboid.min_y, -33);
+        assert_eq!(cuboid.max_y, 20);
+        assert_eq!(cuboid.min_z, -18);
+        assert_eq!(cuboid.max_z, 35);
+        assert_eq!(cuboid.added, true);
     }
 }
