@@ -26,18 +26,17 @@ impl Solution {
     }
 
     fn part2(&mut self) -> Cost{
-        // let mut updated_lines = self.lines.clone();
-        // updated_lines.insert(3, "  #D#C#B#A#".to_string());
-        // updated_lines.insert(4, "  #D#B#A#C#".to_string());
-        // println!("Updated lines: {:?}", updated_lines);
-        0
+        let mut updated_lines = self.lines.clone();
+        updated_lines.insert(3, "  #D#C#B#A#".to_string());
+        updated_lines.insert(4, "  #D#B#A#C#".to_string());
+        let initial_map = Map::parse(&updated_lines);
+        Self::astar(initial_map)
     }
 
     fn astar(initial_map: Map) -> Cost {
         // Implement A* algorithm
         let mut open_set = BinaryHeap::new();
         let mut g_score = HashMap::new();
-        let mut came_from: HashMap<Map, Map> = HashMap::new();
 
         open_set.push(Node {
             map: initial_map.clone(),
@@ -52,20 +51,6 @@ impl Solution {
             f_score: _,
         }) = open_set.pop() {
             if current.is_final() {
-                // Reconstruct path
-                // let mut path = vec![current.clone()];
-                // let mut current = current.clone();
-
-                // while let Some(previous) = came_from.get(&current) {
-                //     path.push(previous.clone());
-                //     current = previous.clone();
-                // }
-
-                // // Print path
-                // for map in path.iter().rev() {
-                //     println!("{}", map);
-                // }
-                
                 return current_g_score;
             }
 
@@ -73,7 +58,6 @@ impl Solution {
                 let neighbor_g_score = *g_score.get(&neighbor).unwrap_or(&Cost::MAX);
                 let tentative_g_score = current_g_score + d;
                 if tentative_g_score < neighbor_g_score {
-                    came_from.insert(neighbor.clone(), current.clone());
                     g_score.insert(neighbor.clone(), tentative_g_score);
 
                     // Condition about the node being in open_set ? Not needed ?
@@ -244,7 +228,6 @@ impl Entity {
 
     pub fn cost_to_move(&self, (x, y): (usize, usize)) -> Cost {
         let dist = manathan_distance((self.x, self.y), (x, y));
-
         dist * self.move_cost
     }
 
@@ -285,11 +268,6 @@ impl Entity {
 
         // Remove the start
         res.remove(&(self.x, self.y));
-
-        // if self.x == 9 && self.y == 3 && target_x == 11 && target_y == 1 {
-        //     println!("Found ! {:?}", res.iter().sorted().collect::<Vec<_>>());
-        // }
-
         res
     }
 }
@@ -319,8 +297,7 @@ impl Map {
     }
 
     pub fn heuristic(&self) -> Cost {
-        // self.entities.iter().map(|e| e.heuristic()).sum()
-        0
+        self.entities.iter().map(|e| e.heuristic()).sum()
     }
 
     pub fn is_final(&self) -> bool {
