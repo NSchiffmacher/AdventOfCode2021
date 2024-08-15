@@ -22,7 +22,18 @@ impl Solution {
 
     fn part1(&mut self) -> Cost {
         let initial_map = Map::parse(&self.lines);
+        Self::astar(initial_map)
+    }
 
+    fn part2(&mut self) -> Cost{
+        // let mut updated_lines = self.lines.clone();
+        // updated_lines.insert(3, "  #D#C#B#A#".to_string());
+        // updated_lines.insert(4, "  #D#B#A#C#".to_string());
+        // println!("Updated lines: {:?}", updated_lines);
+        0
+    }
+
+    fn astar(initial_map: Map) -> Cost {
         // Implement A* algorithm
         let mut open_set = BinaryHeap::new();
         let mut g_score = HashMap::new();
@@ -76,24 +87,6 @@ impl Solution {
         }
 
         -1
-    }
-
-    fn part2(&mut self) {
-        return; 
-        let initial_map = Map::parse(&self.lines);
-
-        println!("\n\nInitial map:");
-        println!("{}", initial_map);
-
-        let entities = initial_map.build_entities();
-        let entity = entities.get(&(7, 2)).unwrap();
-        println!("Entity: {:?}", entity);
-        println!("Possible next steps: {:?}", entity.possible_next_steps(&entities));
-
-        for neighbor in initial_map.get_possible_next_states() {
-            println!("Neighbor: ");
-            println!("{:?}", neighbor);
-        }
     }
 
     pub fn solve(&mut self) {
@@ -152,14 +145,16 @@ impl Hash for Map {
 struct Entity {
     x: usize,
     y: usize,
+
     target_x: usize,
+    max_y: usize,
 
     move_cost: Cost,
     pub entity_type: char,
 }
 
 impl Entity {
-    pub fn parse(x: usize, y: usize, entity_type: char) -> Option<Self> {
+    pub fn parse(x: usize, y: usize, entity_type: char, max_y: usize) -> Option<Self> {
         let (target_x, move_cost) = match entity_type {
             'A' => (3, 1),
             'B' => (5, 10),
@@ -171,6 +166,7 @@ impl Entity {
         Some(Self {
             x,
             y,
+            max_y,
             target_x,
             move_cost,
             entity_type,
@@ -191,34 +187,49 @@ impl Entity {
 
     pub fn possible_next_steps(&self, entities: &HashMap<(usize, usize), Entity>) -> Vec<(usize, usize)>{
         let mut res = vec![];
-
-        // This entity is in its final spot, it's not moving anymore
-        if self.in_theorical_final_spot() && (self.y == 3 || (self.y == 2 && entities.get(&(self.target_x, 3)).map_or(false, |e| e.in_theorical_final_spot()))) {
-            return res;
-        }
+        let hallway_entities: Vec<_> = (2..=self.max_y).map(|y| entities.get(&(self.target_x, y))).collect();
 
         // If it's in the hallway, it can only move to it's final column
         if self.y == 1 {
-            // Can it go to (target_x, 3)
-            let deep_final_spot_entity = entities.get(&(self.target_x, 3));
-            let shallow_final_spot_entity = entities.get(&(self.target_x, 2));
-
-            // Deep final spot is not empty
-            if let Some(e) = deep_final_spot_entity {
-                if e.in_theorical_final_spot() && shallow_final_spot_entity.is_none() {
-                    res.push((self.target_x, 2));
+            // We need to find the deepest available spot
+            let mut last_empty_spot = None;
+            for (i, e) in hallway_entities.iter().enumerate() {
+                if e.is_none() {
+                    last_empty_spot = Some(i);
+                } else {
+                    break;
                 }
-            } 
-            
-            // Deep final spot is empty
-            else {
-                res.push((self.target_x, 3));
-            } 
+            }
 
+            if let Some(i) = last_empty_spot {
+                // Check that the all the next one are full with the right type
+                let mut can_move = true;
+                for entity in &hallway_entities[i+1..] {
+                    match entity {
+                        Some(e) if e.entity_type == self.entity_type => continue,
+                        None => continue,
+                        _ => {
+                            can_move = false;
+                            break;
+                        }
+                    }
+                }
+
+                if can_move {
+                    res.push((self.target_x, i + 2));
+                }
+            }
         }
 
-        // If it's in one of the collumns (and not in it's final spot), it can move to the hallway
+        // If it's in one of the collumns, it can move to the hallway or it's in the final spot
         else {
+            // This entity is in its final spot and all the spots after are taken
+            let hallway_index = self.y - 2;
+            if self.in_theorical_final_spot() && hallway_entities[hallway_index+1..].iter().all(|e| e.map(|f| f.entity_type == self.entity_type).unwrap_or(false)) {
+                return res;
+            }
+
+            // It can move to the hallway
             for x in 1..=11 {
                 if entities.get(&(x, 1)).is_none() && x != 3 && x != 5 && x != 7 && x != 9 {
                     res.push((x, 1));
@@ -292,23 +303,24 @@ pub fn manathan_distance(point_a: (usize, usize), point_b: (usize, usize)) -> Co
 
 impl Map {
     pub fn parse(lines: &Vec<String>) -> Self {
+        let max_y = lines.len() - 2;
         let entities = lines.iter().enumerate().map(|(y, line)| {
             line.chars().enumerate().map(move |(x, c)| {
-                Entity::parse(x, y, c)
+                Entity::parse(x, y, c, max_y)
             })
         })
             .flatten()
             .filter_map(|e| e)
             .collect::<Vec<_>>();
         
-
         Self {
             entities,
         }
     }
 
     pub fn heuristic(&self) -> Cost {
-        self.entities.iter().map(|e| e.heuristic()).sum()
+        // self.entities.iter().map(|e| e.heuristic()).sum()
+        0
     }
 
     pub fn is_final(&self) -> bool {
