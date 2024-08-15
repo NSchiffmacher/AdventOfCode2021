@@ -24,44 +24,48 @@ impl Solution {
         let initial_map = Map::parse(&self.lines);
 
         // Implement A* algorithm
-        let mut open_set = BTreeSet::new();
+        // let mut open_set = BTreeSet::new();
+        let mut open_set = HashSet::new();
         let mut g_score = HashMap::new();
+        let mut f_score = HashMap::new();
         let mut came_from: HashMap<Map, Map> = HashMap::new();
-        // let mut f_score = HashMap::new();
 
         open_set.insert(initial_map.clone());
         g_score.insert(initial_map.clone(), 0);
-        // f_score.insert(initial_map.clone(), initial_map.heuristic());
+        f_score.insert(initial_map.clone(), initial_map.heuristic());
 
-        while let Some(current) = open_set.pop_first() {
+        while open_set.len() > 0 {
+            let current = open_set.iter().min_by_key(|map| f_score.get(*map)).unwrap().clone();
+            open_set.remove(&current);
+
             if current.is_final() {
                 let cost = current.current_cost;
 
                 // Reconstruct path
-                let mut path = vec![current.clone()];
-                let mut current = current.clone();
+                // let mut path = vec![current.clone()];
+                // let mut current = current.clone();
 
-                while let Some(previous) = came_from.get(&current) {
-                    path.push(previous.clone());
-                    current = previous.clone();
-                }
+                // while let Some(previous) = came_from.get(&current) {
+                //     path.push(previous.clone());
+                //     current = previous.clone();
+                // }
 
-                // Print path
-                for map in path.iter().rev() {
-                    println!("{}", map);
-                }
+                // // Print path
+                // for map in path.iter().rev() {
+                //     println!("{}", map);
+                // }
                 
                 return cost;
             }
 
-            for neighbor in current.get_possible_next_states() {
-                let current_g_score = *g_score.get(&neighbor).unwrap_or(&T::MAX);
-                let tentative_g_score = neighbor.current_cost;
-                
-                if tentative_g_score < current_g_score {
-                    g_score.insert(neighbor.clone(), tentative_g_score);
+            for (neighbor, d) in current.get_possible_next_states() {
+                let current_g_score = *g_score.get(&current).unwrap_or(&T::MAX);
+                let neighbor_g_score = *g_score.get(&neighbor).unwrap_or(&T::MAX);
+                let tentative_g_score = current_g_score + d;
+                if tentative_g_score < neighbor_g_score {
                     came_from.insert(neighbor.clone(), current.clone());
-                    // f_score.insert(neighbor.clone(), tentative_g_score + neighbor.heuristic());
+                    g_score.insert(neighbor.clone(), tentative_g_score);
+                    f_score.insert(neighbor.clone(), tentative_g_score + neighbor.heuristic());
 
                     // if !open_set.contains(&neighbor) {
                     open_set.insert(neighbor);
@@ -76,18 +80,21 @@ impl Solution {
     }
 
     fn part2(&mut self) {
-        // let initial_map = Map::parse(&self.lines);
+        return; 
+        let initial_map = Map::parse(&self.lines);
 
-        // println!("\n\nInitial map:");
-        // println!("{}", initial_map);
+        println!("\n\nInitial map:");
+        println!("{}", initial_map);
 
-        // let entities = initial_map.build_entities();
-        // let entity = entities.get(&(11, 1)).unwrap();
+        let entities = initial_map.build_entities();
+        let entity = entities.get(&(7, 2)).unwrap();
+        println!("Entity: {:?}", entity);
+        println!("Possible next steps: {:?}", entity.possible_next_steps(&entities));
 
-        // for neighbor in initial_map.get_possible_next_states() {
-        //     println!("Neighbor: ");
-        //     println!("{}", neighbor);
-        // }
+        for neighbor in initial_map.get_possible_next_states() {
+            println!("Neighbor: ");
+            println!("{:?}", neighbor);
+        }
     }
 
     pub fn solve(&mut self) {
@@ -112,13 +119,38 @@ impl Solution {
 
 type T = i32;
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Debug)]
 struct Map {
     entities: Vec<Entity>,
     current_cost: T,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+impl PartialEq for Map {
+    fn eq(&self, other: &Self) -> bool {
+        // Sort the entites based on position, otherwise the comparison will fail
+        let mut self_entities = self.entities.clone();
+        let mut other_entities = other.entities.clone();
+
+        self_entities.sort_by_key(|e| (e.x, e.y));
+        other_entities.sort_by_key(|e| (e.x, e.y));
+
+        self_entities == other_entities
+    }
+}
+
+impl Eq for Map {}
+
+impl Hash for Map {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // Sort the entites based on position, otherwise the hashes will be different
+        let mut entities = self.entities.clone();
+        entities.sort_by_key(|e| (e.x, e.y));
+
+        entities.hash(state);
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq)]
 struct Entity {
     x: usize,
     y: usize,
@@ -126,24 +158,6 @@ struct Entity {
 
     move_cost: T,
     pub entity_type: char,
-}
-
-impl PartialOrd for Map {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        let f_score_self = self.current_cost + self.heuristic();
-        let f_score_other = other.current_cost + other.heuristic();
-
-        f_score_self.partial_cmp(&f_score_other)
-    }
-}
-
-impl Ord for Map {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let f_score_self = self.current_cost + self.heuristic();
-        let f_score_other = other.current_cost + other.heuristic();
-
-        f_score_self.cmp(&f_score_other)
-    }
 }
 
 impl Entity {
@@ -167,6 +181,14 @@ impl Entity {
 
     pub fn in_theorical_final_spot(&self) -> bool {
         self.x == self.target_x && self.y >= 2
+    }
+
+    pub fn heuristic(&self) -> T {
+        if self.in_theorical_final_spot() {
+            return 0;
+        }
+
+        manathan_distance((self.x, self.y), (self.target_x, 2)) * self.move_cost
     }
 
     pub fn possible_next_steps(&self, entities: &HashMap<(usize, usize), Entity>) -> Vec<(usize, usize)>{
@@ -289,7 +311,7 @@ impl Map {
     }
 
     pub fn heuristic(&self) -> T {
-        0 // TODO 
+        self.entities.iter().map(|e| e.heuristic()).sum()
     }
 
     pub fn is_final(&self) -> bool {
@@ -309,7 +331,7 @@ impl Map {
         entities
     }
 
-    pub fn get_possible_next_states(&self) -> Vec<Self> {
+    pub fn get_possible_next_states(&self) -> Vec<(Self, T)> {
         let mut res = vec![];
         let entities = self.build_entities();
         
@@ -333,7 +355,7 @@ impl Map {
                     current_cost: self.current_cost + move_cost,
                 };
 
-                res.push(new_map);
+                res.push((new_map, move_cost));
             }
         }
 
