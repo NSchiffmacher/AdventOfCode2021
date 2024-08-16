@@ -21,6 +21,7 @@ path = "src/bin/test.rs"
 bimap = "0.6.3"
 float-cmp = "0.9.0"
 itertools = "0.11.0"
+lazy_static = "1.5.0"
 ndarray = "0.15.6"
 ndarray-linalg = {version = "0.16.0", features = ["openblas-static"]}
 num = "0.4.1"
