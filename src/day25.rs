@@ -13,34 +13,18 @@ pub struct Solution {
 impl Solution {
     pub fn init() -> Self {
         let mut lines = Vec::new();
-        for line in read_to_string("inputs/day18.txt").unwrap().lines() {
+        for line in read_to_string("inputs/day25.txt").unwrap().lines() {
             lines.push(line.to_string());
         }
 
         Self { lines }
     }
 
-    fn part1(&mut self) -> T {
-        let mut numbers = self.lines.iter().map(|line| parse(line));
-        let first = numbers.next().unwrap();
-        let addition_result = numbers.fold(first, |acc, num| add(acc, num));
-        magnitude(&addition_result)
-    }
-
-    fn part2(&mut self) -> T {
-        let pairs = self.lines.iter().map(|line| parse(line)).combinations(2);
-        let mut max_mag = 0;
-        for pair in pairs {
-            let mag_addition_forward = magnitude(&add(pair[0].clone(), pair[1].clone()));
-            let mag_addition_backward = magnitude(&add(pair[1].clone(), pair[0].clone()));
-            max_mag = max_mag.max(mag_addition_forward).max(mag_addition_backward);
-        }
-
-        max_mag
+    fn part1(&mut self) {
     }
 
     pub fn solve(&mut self) {
-        println!("========= DAY 18 ========");
+        println!("========= DAY 25 ========");
         print!("Solving part 1: ");
         io::stdout().flush().unwrap();
 
@@ -50,11 +34,7 @@ impl Solution {
         println!("{:?} (took {:?})", part1, part1_time);
 
         print!("Solving part 2: ");
-        io::stdout().flush().unwrap();
-        let start = std::time::Instant::now();
-        let part2 = self.part2();
-        let part2_time = start.elapsed();
-        println!("{:?} (took {:?})", part2, part2_time);
+        println!("MERRY CHRISTMAS");
         println!();
     }
 }
