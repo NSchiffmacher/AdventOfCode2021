@@ -1,5 +1,7 @@
 // Inspired by https://www.ericburden.work/blog/2021/12/29/advent-of-code-2021-day-19/
 
+use std::collections::{HashMap, HashSet};
+use std::fmt::Display;
 use std::fs::read_to_string;
 use std::io::{self, Write};
 
@@ -7,20 +9,33 @@ use std::io::{self, Write};
 use itertools::Itertools;
 
 pub struct Solution {
-    lines: Vec<String>,
+    content: String,
 }
 
 impl Solution {
     pub fn init() -> Self {
-        let mut lines = Vec::new();
-        for line in read_to_string("inputs/day25.txt").unwrap().lines() {
-            lines.push(line.to_string());
-        }
+        let content = read_to_string("inputs/day25.txt").unwrap();
 
-        Self { lines }
+        Self { content }
     }
 
-    fn part1(&mut self) {
+    fn part1(&mut self) -> usize{
+        let mut map = Map::try_from(self.content.as_str()).unwrap();
+        let mut seen = HashSet::new();
+        let mut step = 0;
+
+        loop {
+            let map_string = map.to_string();
+            if seen.contains(map_string.as_str()) {
+                break;
+            }
+
+            seen.insert(map_string);
+            map.tick();
+            step += 1;
+        }
+
+        step
     }
 
     pub fn solve(&mut self) {
@@ -39,309 +54,153 @@ impl Solution {
     }
 }
 
-type T = i32;
-type Number = Vec<Symbol>;
-type Depth = usize;
+
+type Coordinate = i32;
 
 #[derive(Debug, PartialEq, Clone)]
-enum Symbol {
-    Number(T),
-    LBracket,
-    RBracket,
-    Comma,
+enum Creature {
+    EastFacing,
+    SouthFacing,
 }
 
-fn parse(input: &str) -> Number {
-    let mut symbols = Vec::new();
-
-    for token in input.chars() {
-        match token {
-            '0'..='9' => symbols.push(Symbol::Number(token.to_digit(10).unwrap() as T)),
-            '[' => symbols.push(Symbol::LBracket),
-            ']' => symbols.push(Symbol::RBracket),
-            ',' => symbols.push(Symbol::Comma),
-            _ => (),
+impl Creature {
+    fn get_delta(&self) -> (Coordinate, Coordinate) {
+        match self {
+            Creature::EastFacing => (1, 0),
+            Creature::SouthFacing => (0, 1),
         }
-    }
-
-    symbols
-}
-
-fn format(input: &Number) -> String {
-    let mut output = String::new();
-
-    for symbol in input {
-        match symbol {
-            Symbol::Number(n) => output.push_str(&n.to_string()),
-            Symbol::LBracket => output.push('['),
-            Symbol::RBracket => output.push(']'),
-            Symbol::Comma => output.push(','),
-        }
-    }
-
-    output
-}
-
-fn find_first_regular_left(value: &Number, left_index: usize) -> Option<usize> {
-    for i in (0..left_index).rev() {
-        match value[i] {
-            Symbol::Number(_) => return Some(i),
-            _ => (),
-        }
-    }
-
-    None
-}
-
-fn find_first_regular_right(value: &Number, right_index: usize) -> Option<usize> {
-    for i in right_index + 1..value.len() {
-        match value[i] {
-            Symbol::Number(_) => return Some(i),
-            _ => (),
-        }
-    }
-
-    None
-}
-
-fn get_value(value: &Number, index: usize) -> T {
-    match value[index] {
-        Symbol::Number(n) => n,
-        _ => panic!("Expected a number"),
     }
 }
 
-fn explode_at(number: &mut Number, left_index: usize) {
-    if left_index == 0 {
-        panic!("Cannot explode at the beginning of the list");
-    }
+struct Map {
+    width: Coordinate,
+    height: Coordinate,
 
-    let right_index = left_index + 2; // Assume that left_index is a number and the next symbol is a comma, and the next one a number
-
-    match find_first_regular_left(&number, left_index) {
-        Some(index) => {
-            number[index] =
-                Symbol::Number(get_value(number, index) + get_value(number, left_index));
-        }
-        None => (),
-    }
-
-    match find_first_regular_right(&number, right_index) {
-        Some(index) => {
-            number[index] =
-                Symbol::Number(get_value(number, index) + get_value(number, right_index));
-        }
-        None => (),
-    }
-
-    // Replace the pair from indices (inclusive) left_index - 1 (= LComma) and right_index + 1 (= RComma) with a number zero
-    number.splice(left_index - 1..=right_index + 1, vec![Symbol::Number(0)]);
+    creatures: HashMap<(Coordinate, Coordinate), Creature>,
 }
 
-fn explode_once(value: &mut Number) -> bool {
-    // Find the left most pair, if any, and if it's depth is greater than 4, explode it
-    let mut depth = 0;
-    for i in 0..value.len()-2 {
-        match value[i] {
-            Symbol::LBracket => depth += 1,
-            Symbol::RBracket => depth -= 1,
-            _ => (),
-        }
-        match (&value[i], &value[i + 1], &value[i + 2]) {
-            (Symbol::Number(_), Symbol::Comma, Symbol::Number(_)) if depth > 4 => {
-                explode_at(value, i);
-                return true;
+impl TryFrom<&str> for Map {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let lines = value.lines().collect::<Vec<_>>();
+        let width = lines[0].len() as Coordinate;
+        let height = lines.len() as Coordinate;
+
+        let mut creatures = HashMap::new();
+        for (y, line) in lines.iter().enumerate() {
+            for (x, c) in line.chars().enumerate() {
+                let coord = (x as Coordinate, y as Coordinate);
+                match c {
+                    '>' => { creatures.insert(coord, Creature::EastFacing); }
+                    'v' => { creatures.insert(coord, Creature::SouthFacing); }
+                    '.' => (), // empty space
+                    _ => return Err(format!("Invalid character: {}", c).into()),
+                };
             }
-            _ => (),
         }
+
+        Ok(Self { width, height, creatures })
     }
-
-    false
 }
 
-fn split_at(number: &mut Number, regular_number_index: usize) {
-    let value = get_value(number, regular_number_index);
-    // let left_value = value.div_floor(&2);
-    // let right_value = value.div_ceil(&2);
-    let left_value = value / 2;
-    let right_value = value - left_value;
-    number.splice(
-        regular_number_index..regular_number_index + 1,
-        vec![
-            Symbol::LBracket,
-            Symbol::Number(left_value),
-            Symbol::Comma,
-            Symbol::Number(right_value),
-            Symbol::RBracket,
-        ],
-    );
-}
-
-fn split_once(number: &mut Number) -> bool {
-    for i in 0..number.len() {
-        match number[i] {
-            Symbol::Number(n) if n >= 10 => {
-                split_at(number, i);
-                return true;
-            }
-            _ => (),
-        }
-    }
-
-    false
-}
-
-fn add(num_a: Number, num_b: Number) -> Number {
-    let mut result = vec![Symbol::LBracket]
-        .into_iter()
-        .chain(num_a.into_iter())
-        .chain(vec![Symbol::Comma])
-        .chain(num_b.into_iter())
-        .chain(vec![Symbol::RBracket])
-        .collect_vec();
-
-    // Apply reduction
-    loop {
-        if explode_once(&mut result) {
-            continue;
-        }
-
-        let split = split_once(&mut result);
-        if !split {
-            break;
-        }
-    }
-    result
-}
-
-fn magnitude(number: &Number) -> T {
-    let mut expressions_queue = vec![];
-    for token in number {
-        match token {
-            Symbol::LBracket | Symbol::Comma => (),
-            Symbol::Number(n) => expressions_queue.push(*n),
-            Symbol::RBracket => {
-                if expressions_queue.len() < 2 {
-                    panic!("Invalid expression, not enough operands");
+impl Display for Map {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for y in 0..self.height {
+            for x in 0..self.width {
+                if let Some(creature) = self.creatures.get(&(x, y)) {
+                    match creature {
+                        Creature::EastFacing => write!(f, ">")?,
+                        Creature::SouthFacing => write!(f, "v")?,
+                    }
+                } else {
+                    write!(f, ".")?;
                 }
-                let right = expressions_queue.pop().unwrap();
-                let left = expressions_queue.pop().unwrap();
-                expressions_queue.push(3 * left + 2 * right);
             }
+            writeln!(f)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Map {
+    pub fn tick(&mut self) {
+        let east_moves = self.can_move(Creature::EastFacing);
+        self.apply_moves(east_moves);
+
+        let south_moves = self.can_move(Creature::SouthFacing);
+        self.apply_moves(south_moves);
+    }
+
+    pub fn can_move(&mut self, creature_type: Creature) -> HashMap<(Coordinate, Coordinate), (Coordinate, Coordinate)> {
+        let mut result = HashMap::new();
+
+        for (coord, creature) in self.creatures.iter() {
+            if creature == &creature_type {
+                let (x, y) = coord;
+                let (dx, dy) = creature.get_delta();
+                let new_coord = self.wrap((x + dx, y + dy));
+
+                if !self.creatures.contains_key(&new_coord) {
+                    result.insert(*coord, new_coord);
+                }
+            }
+        }
+
+        result
+    }
+
+    fn apply_moves(&mut self, moves: HashMap<(Coordinate, Coordinate), (Coordinate, Coordinate)>) {
+        for (old_coord, new_coord) in moves {
+            let creature = self.creatures.remove(&old_coord).expect(format!("No creature at {:?}", old_coord).as_str());
+            self.creatures.insert(new_coord, creature);
         }
     }
 
-    if expressions_queue.len() != 1 {
-        panic!("Invalid expression, expressions_queue contains {} elements", expressions_queue.len());
+    fn wrap(&self, (x, y): (Coordinate, Coordinate)) -> (Coordinate, Coordinate) {
+        (x % self.width, y % self.height)
     }
-
-    expressions_queue.pop().unwrap()    
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
+    
     #[test]
-    fn parse1() {
-        let input = "2";
-        let expected = vec![Symbol::Number(2)];
-        assert_eq!(parse(input), expected);
+    fn test_parse() {
+        let input = "..........\n.>........\n..v....v>.\n..........\n";
+        let map = Map::try_from(input).unwrap();
+        assert_eq!(map.to_string(), input);
+        assert_eq!(map.width, 10);
+        assert_eq!(map.height, 4);
     }
 
     #[test]
-    fn parse2() {
-        let input = "[1,2]";
-        let expected = vec![
-            Symbol::LBracket,
-            Symbol::Number(1),
-            Symbol::Comma,
-            Symbol::Number(2),
-            Symbol::RBracket,
-        ];
-        assert_eq!(parse(input), expected);
+    fn test_tick_1d() {
+        let input = "...>>>>>...\n";
+        let mut map = Map::try_from(input).unwrap();
+        map.tick();
+        assert_eq!(map.to_string(), "...>>>>.>..\n");
     }
 
     #[test]
-    fn parse3() {
-        let input = "[1,[2,3]]";
-        let expected = vec![
-            Symbol::LBracket,
-            Symbol::Number(1),
-            Symbol::Comma,
-            Symbol::LBracket,
-            Symbol::Number(2),
-            Symbol::Comma,
-            Symbol::Number(3),
-            Symbol::RBracket,
-            Symbol::RBracket,
-        ];
-        assert_eq!(parse(input), expected);
+    fn test_tick_2d() {
+        let input = "..........\n.>v....v..\n.......>..\n..........\n";
+        let expected = "..........\n.>........\n..v....v>.\n..........\n";
+        let mut map = Map::try_from(input).unwrap();
+        map.tick();
+        assert_eq!(map.to_string(), expected);
     }
 
     #[test]
-    fn test_format() {
-        let input = vec![
-            Symbol::LBracket,
-            Symbol::Number(1),
-            Symbol::Comma,
-            Symbol::LBracket,
-            Symbol::Number(2),
-            Symbol::Comma,
-            Symbol::Number(3),
-            Symbol::RBracket,
-            Symbol::RBracket,
-        ];
-        let expected = "[1,[2,3]]";
-        assert_eq!(format(&input), expected);
-    }
+    fn test_multiple_ticks() {
+        let input = "...>...\n.......\n......>\nv.....>\n......>\n.......\n..vvv..\n";
+        let expected = ">......\n..v....\n..>.v..\n.>.v...\n...>...\n.......\nv......\n";
+        let steps = 4;
 
-    #[test]
-    fn test_explode_at() {
-        let mut input = parse("[[[[[9,8],1],2],3],4]");
-        explode_at(&mut input, 5);
-        let expected = "[[[[0,9],2],3],4]";
-        assert_eq!(format(&input), expected);
-    }
-
-    #[test]
-    fn test_explode_once() {
-        let mut input = parse("[[3,[2,[1,[7,3]]]],[6,[5,[4,[3,2]]]]]");
-        let expected = "[[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]";
-        explode_once(&mut input);
-        assert_eq!(format(&input), expected);
-    }
-
-    #[test]
-    fn test_explode_once2() {
-        let mut input = parse("[[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]");
-        let expected = "[[3,[2,[8,0]]],[9,[5,[7,0]]]]";
-        explode_once(&mut input);
-        assert_eq!(format(&input), expected);
-    }
-
-    #[test]
-    fn test_split_at() {
-        let mut input = vec![Symbol::Number(10)];
-        let expected = "[5,5]";
-        split_at(&mut input, 0);
-        assert_eq!(format(&input), expected);
-    }
-
-    #[test]
-    fn test_split_at2() {
-        let mut input = vec![Symbol::Number(11)];
-        let expected = "[5,6]";
-        split_at(&mut input, 0);
-        assert_eq!(format(&input), expected);
-    }
-
-    #[test]
-    fn test_add1() {
-        let a = parse("[[[[4,3],4],4],[7,[[8,4],9]]]");
-        let b = parse("[1,1]");
-        let addition = add(a, b);
-        let expected = "[[[[0,7],4],[[7,8],[6,0]]],[8,1]]";
-        assert_eq!(format(&addition), expected);
+        let mut map = Map::try_from(input).unwrap();
+        (0..steps).for_each(|_| map.tick());
+        assert_eq!(map.to_string(), expected);
     }
 }
